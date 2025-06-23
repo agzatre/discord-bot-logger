@@ -90,6 +90,7 @@ class ToggleLoggingButton(disnake.ui.Button):
     def __init__(self, db: Database, guild: disnake.Guild, is_enabled: bool):
         self.db = db
         self.guild = guild
+        self.is_enabled = is_enabled
 
         if is_enabled:
             super().__init__(
@@ -103,18 +104,8 @@ class ToggleLoggingButton(disnake.ui.Button):
             )
 
     async def callback(self, inter: disnake.MessageInteraction):
-        settings = await self.db.get_log_settings(self.guild.id) or {}
-        current_status = settings.get("logging_enabled", False)
-        new_status = not current_status
-
+        new_status = not self.is_enabled
         await self.db.set_logging_enabled(self.guild.id, new_status)
-
-        if new_status:
-            self.label = "Выключить логирование"
-            self.style = disnake.ButtonStyle.red
-        else:
-            self.label = "Включить логирование"
-            self.style = disnake.ButtonStyle.green
 
         embed = disnake.Embed(
             title="Статус логирования изменён",
@@ -124,7 +115,8 @@ class ToggleLoggingButton(disnake.ui.Button):
 
         view = disnake.ui.View()
         view.add_item(LogChannelSelect(self.db, self.guild))
-        view.add_item(self)
+
+        view.add_item(ToggleLoggingButton(self.db, self.guild, new_status))
 
         if new_status:
             view.add_item(DetailedSettingsButton(self.db, self.guild))
@@ -132,7 +124,6 @@ class ToggleLoggingButton(disnake.ui.Button):
         view.add_item(BackButton(self.db, self.guild))
 
         await inter.response.edit_message(embed=embed, view=view)
-
 
 class DetailedSettingsButton(disnake.ui.Button):
     def __init__(self, db: Database, guild: disnake.Guild):
