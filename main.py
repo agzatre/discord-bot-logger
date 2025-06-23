@@ -8,9 +8,8 @@ from config import *
 from utils.database import Database
 
 bot = commands.InteractionBot(
-    intents=disnake.Intents.default(),
-    status=disnake.Status.dnd,
-    test_guilds=[1385464805736972349])
+    intents=disnake.Intents.all(),
+    status=disnake.Status.dnd)
 
 file_log = RotatingFileHandler('./logs/logs.log', maxBytes=1 * 1024 * 1024 * 1024, backupCount=5)
 console_out = logging.StreamHandler()

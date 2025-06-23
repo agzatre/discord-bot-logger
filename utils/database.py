@@ -8,6 +8,7 @@ from config import database
 
 class Database:
     def __init__(self):
+        """Initialize database connection parameters."""
         self.connection_params = {
             "user": database['user'],
             "password": database['password'],
@@ -18,22 +19,16 @@ class Database:
         self.pool: Optional[asyncpg.pool.Pool] = None
 
     async def __aenter__(self) -> "Database":
-        """
-        Асинхронный вход в контекстный менеджер.
-        """
+        """Async context manager entry point."""
         await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
-        """
-        Асинхронный выход из контекстного менеджера.
-        """
+        """Async context manager exit point."""
         await self.close()
 
     async def connect(self) -> None:
-        """
-        Создаёт пул соединений к базе данных и необходимые таблицы/индексы.
-        """
+        """Establish database connection pool and create tables."""
         try:
             self.pool = await asyncpg.create_pool(
                 **self.connection_params,
@@ -44,28 +39,24 @@ class Database:
             await self.create_tables()
             await self.create_indexes()
         except Exception as e:
-            logging.error(f"Ошибка подключения к базе данных: {e}")
+            logging.error(f"Database connection error: {e}")
             raise
 
-    async def create_tables(self):
-        """
-        Создаёт необходимые таблицы в базе данных.
-        """
+    async def create_tables(self) -> None:
+        """Create required tables if they don't exist."""
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                               CREATE TABLE IF NOT EXISTS log_settings
-                               (
-                                   guild_id        BIGINT PRIMARY KEY,
-                                   log_channel_id  BIGINT NOT NULL DEFAULT 0,
-                                   logging_enabled BOOLEAN         DEFAULT FALSE,
-                                   log_types       TEXT            DEFAULT 'message:0,invite:0,server:0,voice:0,automod:0,user:0'
-                               );
-                               """)
+                CREATE TABLE IF NOT EXISTS bot_settings (
+                    guild_id        BIGINT PRIMARY KEY,
+                    log_channel_id  BIGINT NOT NULL DEFAULT 0,
+                    logging_enabled BOOLEAN DEFAULT FALSE,
+                    log_types       TEXT DEFAULT 'message:0,invite:0,server:0,voice:0,automod:0,user:0',
+                    language        TEXT DEFAULT 'en'
+                );
+            """)
 
-    async def create_indexes(self):
-        """
-        Создаёт необходимые индексы в базе данных.
-        """
+    async def create_indexes(self) -> None:
+        """Create database indexes for optimization."""
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 DO $$
@@ -80,107 +71,115 @@ class Database:
             """)
 
     async def close(self) -> None:
-        """
-        Закрывает пул соединений с базой данных.
-        """
+        """Close the database connection pool."""
         if self.pool is not None:
             await self.pool.close()
             self.pool = None
 
-    async def _ensure_connection(self):
-        """
-        Проверяет подключение и переподключается при необходимости.
-        """
+    async def _ensure_connection(self) -> None:
+        """Ensure database connection is active."""
         if self.pool is None:
             await self.connect()
 
     async def set_log_channel(self, guild_id: int, channel_id: int) -> None:
+        """Set or update the log channel for a guild."""
         await self._ensure_connection()
         async with self.pool.acquire() as conn:
             try:
                 await conn.execute(
                     """
-                    INSERT INTO log_settings (guild_id, log_channel_id)
+                    INSERT INTO bot_settings (guild_id, log_channel_id)
                     VALUES ($1, $2)
                     ON CONFLICT (guild_id) DO UPDATE SET log_channel_id = EXCLUDED.log_channel_id
                     """,
                     guild_id, channel_id
                 )
             except Exception as e:
-                logging.error(f"Ошибка установки лог-канала: {e}")
+                logging.error(f"Failed to set log channel: {e}")
                 raise
 
     async def set_logging_enabled(self, guild_id: int, enabled: bool) -> None:
-        """
-        Включает или отключает логирование для сервера.
-
-        :param guild_id: ID сервера Discord.
-        :param enabled: Включить (True) или выключить (False) логирование.
-        """
+        """Enable or disable logging for a guild."""
+        if not self.pool:
+            await self.connect()
         async with self.pool.acquire() as conn:
             if enabled:
                 await conn.execute(
                     """
-                    INSERT INTO log_settings (guild_id, log_channel_id, logging_enabled, log_types)
-                    VALUES (
-                        $1,
-                        COALESCE((SELECT log_channel_id FROM log_settings WHERE guild_id = $1), 0),
-                        TRUE,
-                        'message:1,invite:1,server:1,voice:1,automod:1,user:1'
-                    )
+                    INSERT INTO bot_settings (guild_id, logging_enabled, log_types)
+                    VALUES ($1, TRUE, 'message:1,invite:1,server:1,voice:1,automod:1,user:1')
                     ON CONFLICT (guild_id) DO UPDATE
-                    SET logging_enabled = TRUE, log_types = 'message:1,invite:1,server:1,voice:1,automod:1,user:1'
+                        SET logging_enabled = TRUE,
+                            log_types = 'message:1,invite:1,server:1,voice:1,automod:1,user:1'
                     """,
                     guild_id
                 )
             else:
                 await conn.execute(
                     """
-                    INSERT INTO log_settings (guild_id, log_channel_id, logging_enabled)
-                    VALUES (
-                        $1,
-                        COALESCE((SELECT log_channel_id FROM log_settings WHERE guild_id = $1), 0),
-                        FALSE
-                    )
-                    ON CONFLICT (guild_id) DO UPDATE SET logging_enabled = FALSE
+                    UPDATE bot_settings
+                    SET logging_enabled = FALSE
+                    WHERE guild_id = $1
                     """,
                     guild_id
                 )
 
     async def set_log_types(self, guild_id: int, types_str: str) -> None:
-        """
-        Устанавливает типы логирования для сервера.
-
-        :param guild_id: ID сервера Discord.
-        :param types_str: Строка с типами логирования.
-        """
+        """Update logging types for a guild."""
+        if not self.pool:
+            await self.connect()
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO log_settings (guild_id, log_channel_id, log_types)
-                VALUES (
-                    $1,
-                    COALESCE((SELECT log_channel_id FROM log_settings WHERE guild_id = $1), 0),
-                    $2
-                )
-                ON CONFLICT (guild_id) DO UPDATE SET log_types = EXCLUDED.log_types
+                UPDATE bot_settings
+                SET log_types = $2
+                WHERE guild_id = $1
                 """,
                 guild_id, types_str
             )
 
-    async def get_log_settings(self, guild_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Получает настройки логирования для сервера.
+    async def update_log_type(self, guild_id: int, log_type: str, enabled: bool) -> None:
+        """Enable/disable specific log type for a guild."""
+        settings = await self.get_log_settings(guild_id)
+        if not settings:
+            return
 
-        :param guild_id: ID сервера Discord.
-        :return: Словарь с настройками или None, если не найдено.
-        """
+        log_types = {}
+        for item in settings['log_types'].split(','):
+            if ':' in item:
+                typ, val = item.split(':')
+                log_types[typ.strip()] = val.strip()
+
+        log_types[log_type] = '1' if enabled else '0'
+        types_str = ','.join(f"{k}:{v}" for k, v in log_types.items())
+        await self.set_log_types(guild_id, types_str)
+
+    async def get_log_settings(self, guild_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieve logging settings for a guild."""
+        if not self.pool:
+            await self.connect()
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT log_channel_id, logging_enabled, log_types FROM log_settings WHERE guild_id = $1",
+                "SELECT log_channel_id, logging_enabled, log_types FROM bot_settings WHERE guild_id = $1",
                 guild_id
             )
-            if row:
-                return dict(row)
-            return None
+            return dict(row) if row else None
 
+    async def get_language(self, guild_id: int) -> str:
+        """Get language setting for a guild (default: 'en')."""
+        if not self.pool:
+            await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT language FROM bot_settings WHERE guild_id = $1",
+                guild_id
+            ) or "en"
+
+    async def set_language(self, guild_id: int, language: str) -> None:
+        """Set language for a guild."""
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO bot_settings (guild_id, language)
+                VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET language = EXCLUDED.language
+            ''', guild_id, language)

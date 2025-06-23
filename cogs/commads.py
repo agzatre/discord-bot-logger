@@ -1,6 +1,10 @@
 import logging
+from disnake.ext import commands
+import disnake
 
-from utils.view import *
+from utils.database import Database
+from utils.view import BotSettingsView
+from config import messages, bot_settings
 
 
 class Commands(commands.Cog):
@@ -12,24 +16,43 @@ class Commands(commands.Cog):
         await self.db.connect()
         logging.info("Database connected successfully")
 
-    @commands.slash_command(name="ping", description="Проверить задержку бота")
+    @commands.slash_command(name="ping", description="Check bot latency")
     async def ping(self, inter):
+        lang = await self.db.get_language(inter.guild.id)
         latency = round(self.bot.latency * 1000)
-        await inter.response.send_message(f'Pong! Задержка: {latency}мс', ephemeral=True)
+        await inter.response.send_message(
+            messages[lang]['ping'].format(latency=latency),
+            ephemeral=True
+        )
 
-    @commands.slash_command(name="setting", description="Показать настройки бота")
-    async def settings(self, inter: disnake.AppCmdInter):
+    @commands.slash_command(name="settings", description="Show bot settings")
+    async def settings(self, inter: disnake.ApplicationCommandInteraction):
+        lang = await self.db.get_language(inter.guild.id) or "en"
         view = BotSettingsView(self.bot, self.db, inter.guild)
+
         embed = disnake.Embed(
-            title="Настройки бота",
-            description='Основные настройки логирования и мониторинга событий на сервере',
+            title=messages[lang]['settings']['title'],
+            description=messages[lang]['settings']['description'],
             color=0x2b2d31
         )
-        embed.add_field(name="Разработчик", value="`agzatre`", inline=True)
-        embed.add_field(name="Версия", value="1.0.0", inline=True)
-        embed.set_footer(text="agzatre © Copyright 2025  ・  Все права защищены")
-        embed.set_author(icon_url=inter.guild.icon.url if inter.guild.icon else None, name=inter.guild.name)
-        embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+        embed.add_field(
+            name=messages[lang]['settings']['developer'],
+            value=f"`{bot_settings['bot_author']}`",
+            inline=True
+        )
+        embed.add_field(
+            name=messages[lang]['settings']['version'],
+            value=bot_settings['bot_version'],
+            inline=True
+        )
+        embed.set_footer(text=messages[lang]['settings']['footer'])
+        embed.set_author(
+            icon_url=inter.guild.icon.url if inter.guild.icon else None,
+            name=inter.guild.name
+        )
+        embed.set_thumbnail(
+            url=self.bot.user.avatar.url if self.bot.user.avatar else None
+        )
 
         await inter.response.send_message(view=view, embed=embed, ephemeral=True)
 
