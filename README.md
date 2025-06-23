@@ -1,68 +1,74 @@
-# Discord Bot Logger
+# Discord Logging Bot
 
-Discord Bot Logger — это бот для Discord, предназначенный для логирования различных событий на сервере. Он может отслеживать сообщения, изменения участников, действия с ролями и каналами.
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![Disnake](https://img.shields.io/badge/Disnake-2.8+-green.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-blue.svg)
 
-## Возможности
+A comprehensive Discord bot for server activity logging with customizable settings and multi-language support.
 
-- Логирование отправки, редактирования и удаления сообщений
-- Отслеживание входа и выхода участников сервера
-- Логирование изменений ролей и каналов
-- Гибкая настройка логируемых событий
+## Features
 
-## Требования
+- **Detailed Activity Tracking**
+  - Message edits/deletes
+  - Voice channel events
+  - Member joins/leaves/bans
+  - Channel/thread modifications
+  - Reaction changes
+  - Auto-moderation actions
 
+- **Customizable Logging**
+  - Per-category toggles (messages, voice, server, etc.)
+  - Configurable log channel
+  - Granular event type control
+
+- **Multi-language Support**
+  - English and Russian included
+  - Easy to add new languages
+
+## Installation
+
+### Prerequisites
 - Python 3.8+
-- Discord-бот (токен)
+- PostgreSQL 13+
+- Discord bot token
 
-## Установка
-
-1. Клонируйте репозиторий:
+### Setup
+1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/discord-bot-logger.git
-   cd discord-bot-logger
+   git clone https://github.com/your-repo/discord-logging-bot.git
+   cd discord-logging-bot
    ```
 
-2. Установите зависимости:
+2. Install dependencies:
+   ```bash
+   pip install --upgrade pip
+   ```   
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Создайте файл `.env` в корне проекта и укажите в нем параметры для Discord:
-
-   ```
-   # your discord bot token
-   TOKEN=YOUR_DISCORD_BOT_TOKEN
-
-   # database configuration (PostgreSQL, если потребуется в будущем)
-   DB_USER=YOUR_DATABASE
-   DB_PASSWORD=YOUR_DATABASE_PASSWORD
-   DB_DATABASE=YOUR_DATABASE_NAME
-   DB_HOST=0.0.0.0
-   DB_PORT=5432
+3. Configure environment:
+   ```bash
+   cp env.example .env
+   # Edit .env with your credentials
    ```
 
-## Запуск
+4. Run the bot:
+   ```bash
+   python main.py
+   ```
 
-```bash
-python main.py
+## Configuration
+
+Use the `/settings` command to configure:
+
+```
+/settings logging enable      - Enable logging
+/settings channel #logs       - Set log channel
+/settings language            - Set bot language
 ```
 
-## Настройка
 
-- Проверьте, что у бота есть необходимые права на сервере Discord (чтение сообщений, просмотр истории, управление ролями и каналами и т.д.).
-- При необходимости измените параметры логирования в файле `config.py` (если он есть).
+## License
 
-## Использование
-
-1. Пригласите бота на свой сервер Discord с нужными правами.
-2. После запуска бот начнет логировать события согласно настройкам.
-
-## Вклад
-
-Pull requests и предложения приветствуются! Открывайте issues для багов и новых идей.
-
-## Лицензия
-
-MIT License
-
-
+MIT License - See [LICENSE](LICENSE) for details.
